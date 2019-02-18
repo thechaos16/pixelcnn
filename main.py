@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 from torchvision import datasets, transforms, utils
 from torchvision.datasets.mnist import read_image_file, read_label_file
 from models import PixelCNN, GatedPixelCNN
-from data_feeder import DataFeeder
+
 
 backends.cudnn.benchmark = True
 
@@ -65,17 +65,18 @@ if __name__ == '__main__':
     is_gpu = torch.cuda.is_available()
     base_tr = transforms.Compose([transforms.ToTensor()])
     train_dataset = DataLoader(
-        datasets.MNIST('./data', train=True, download=True,
-                       transform=base_tr),
-        batch_size=config.batch, shuffle=True, num_workers=4)
+        datasets.MNIST('./data', train=True, download=True,  transform=base_tr),
+        batch_size=config.batch, shuffle=True, num_workers=4
+    )
     test_dataset = DataLoader(
-        datasets.MNIST('./data', train=False,
-                       transform=base_tr),
-        batch_size=config.batch, shuffle=False, num_workers=4)
+        datasets.MNIST('./data', train=False, transform=base_tr),
+        batch_size=config.batch, shuffle=False, num_workers=4
+    )
 
     if config.gate:
-        model = GatedPixelCNN(config.size, config.layer,
-                              conditional=config.conditional, num_classes=num_classes)
+        model = GatedPixelCNN(
+            config.size, config.layer, conditional=config.conditional, num_classes=num_classes
+        )
     else:
         model = PixelCNN(config.size, config.layer)
     if is_gpu:
@@ -101,7 +102,7 @@ if __name__ == '__main__':
                 train_pred = model(train, train_label)
                 
                 loss = F.cross_entropy(train_pred, target)
-                err_tr += loss.data[0]
+                err_tr += loss.item()
                 batch_iter_tr += 1
                 optimizer.zero_grad()
                 loss.backward()
@@ -117,20 +118,19 @@ if __name__ == '__main__':
                 test = Variable(test_data)
                 target = Variable((test.data[:, 0] * 255).long())
                 loss = F.cross_entropy(model(test, test_label), target)
-                err_te += loss.data[0]
+                err_te += loss.item()
                 batch_iter_te += 1
             state = {'model': model.state_dict(), 'optimizer': optimizer.state_dict()}
             torch.save(state, os.path.join(config.model, '{}.torch'.format(epoch)))
-            print('epoch: {0}, train_err: {1}, test_err: {2}'.format(epoch,
-                                                                     err_tr / batch_iter_tr,
-                                                                     err_te / batch_iter_te))
+            print('epoch: {0}, train_err: {1}, test_err: {2}'.format(
+                epoch, err_tr / batch_iter_tr, err_te / batch_iter_te
+            ))
             # sampling
             nrows = 12
             sample = torch.Tensor(nrows*nrows, 1, 28, 28)
             random_num = np.random.randint(0, num_classes)
             print('random_number: {}'.format(random_num))
-            random_condition = one_hot_encoder([random_num for i in range(nrows*nrows)],
-                                               num_classes)
+            random_condition = one_hot_encoder([random_num for i in range(nrows*nrows)], num_classes)
             if is_gpu:
                 sample = sample.cuda()
                 random_condition = random_condition.cuda()
@@ -150,7 +150,7 @@ if __name__ == '__main__':
         model.load_state_dict(load_state['model'])
         model.eval()
         nrows = 12
-        sample = torch.Tensor(nrows*nrows, 1, 28, 28)
+        sample = torch.Tensor(nrows * nrows, 1, 28, 28)
         row_condition = [np.random.randint(0, num_classes) for i in range(nrows*nrows)]
         print(row_condition)
         random_condition = one_hot_encoder(row_condition, num_classes)
