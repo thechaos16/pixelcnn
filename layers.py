@@ -68,10 +68,8 @@ class GatedUnit(nn.Module):
         self.vertical_f_11 = MaskedConv2d(mask_type, True, self.layer_size, self.layer_size, 1, 1, 0)
         self.vertical_g_11 = MaskedConv2d(mask_type, True, self.layer_size, self.layer_size, 1, 1, 0)
         # separated nxn horizontal unit
-        self.horizontal_f = MaskedConv2d(mask_type, False, self.layer_size,
-                                         self.layer_size, kernel_size, 1, padding)
-        self.horizontal_g = MaskedConv2d(mask_type, False, self.layer_size,
-                                         self.layer_size, kernel_size, 1, padding)
+        self.horizontal_f = MaskedConv2d(mask_type, False, self.layer_size, self.layer_size, kernel_size, 1, padding)
+        self.horizontal_g = MaskedConv2d(mask_type, False, self.layer_size, self.layer_size, kernel_size, 1, padding)
         # gated horizontal
         self.horizontal_gated = GatedConv2d()
         # horizontal 11 conv
@@ -79,7 +77,7 @@ class GatedUnit(nn.Module):
 
     def forward(self, x, h=None):
         split_dim = 1
-        x_v, x_h = torch.split(x, x.size()[split_dim]//2, split_dim)
+        x_v, x_h = torch.split(x, x.size()[split_dim] // 2, split_dim)
         input_dim = x_v.size()
         x_vert_f = self.vertical_f(x_v)
         x_vert_g = self.vertical_g(x_v)
@@ -87,7 +85,7 @@ class GatedUnit(nn.Module):
             vert_cond = self.vertical_conditional(h).unsqueeze(2).unsqueeze(3).expand(input_dim)
             x_vert_f = x_vert_f + vert_cond
             x_vert_g = x_vert_g + vert_cond
-        x_vert_gated = self.vertical_gated(torch.cat([x_vert_f, x_vert_g], split_dim))
+        x_vert_gated = self.vertical_gated(torch.cat((x_vert_f, x_vert_g), split_dim))
         x_vert_f_11 = self.vertical_f_11(x_vert_f)
         x_vert_g_11 = self.vertical_g_11(x_vert_g)
         x_hor_f = self.horizontal_f(x_h)
@@ -96,7 +94,7 @@ class GatedUnit(nn.Module):
             hori_cond = self.horizontal_conditional(h).unsqueeze(2).unsqueeze(3).expand(input_dim)
             x_hor_f += hori_cond
             x_hor_g += hori_cond
-        x_hor_gated = self.horizontal_gated(torch.cat([x_vert_f_11 + x_hor_f, x_vert_g_11 + x_hor_g], split_dim))
+        x_hor_gated = self.horizontal_gated(torch.cat((x_vert_f_11 + x_hor_f, x_vert_g_11 + x_hor_g), split_dim))
         x_hor_11 = self.horizontal_11(x_hor_gated)
         residual = x_hor_11 + x_h
-        return torch.cat([x_vert_gated, residual], split_dim)
+        return torch.cat((x_vert_gated, residual), split_dim)

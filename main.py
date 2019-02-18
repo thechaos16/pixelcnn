@@ -141,7 +141,6 @@ if __name__ == '__main__':
                     probs = F.softmax(out[:, :, w, h]).data
                     sample[:, :, w, h] = torch.multinomial(probs, 1).float() / 255.  # normalization
             utils.save_image(sample, 'sample_{:02d}.png'.format(epoch), nrow=nrows, padding=0)
-
     else:
         file_path = os.path.join(config.model, '{}.torch'.format(config.load))
         if not os.path.isfile(file_path):

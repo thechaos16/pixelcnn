@@ -2,7 +2,7 @@
 import torch
 import torch.nn.functional as F
 from torch import nn
-from layers import MaskedConv2d, GatedConv2d, GatedUnit
+from layers import MaskedConv2d, GatedUnit
 
 
 class PixelCNN(nn.Module):
@@ -23,16 +23,16 @@ class PixelCNN(nn.Module):
     def _init_layer(self):
         self.b_type_masks = nn.Sequential()
         for i in range(self.layer_num):
-            self.b_type_masks.add_module('causal_{}'.format(i),
-                                         MaskedConv2d('B', False, self.layer_size,
-                                                      self.layer_size, 7, 1, 3, bias=False))
+            self.b_type_masks.add_module(
+                'causal_{}'.format(i), MaskedConv2d('B', False, self.layer_size, self.layer_size, 7, 1, 3, bias=False)
+            )
             self.b_type_masks.add_module('bn_{}'.format(i), nn.BatchNorm2d(self.layer_size))
             self.b_type_masks.add_module('relu_{}'.format(i), nn.ReLU(True))
 
     def forward(self, x):
         x = F.relu(self.conv1_bn(self.conv1(x)))
         if self.gated:
-            x = torch.cat([x, x], 1)
+            x = torch.cat((x, x), 1)
         x = self.b_type_masks(x)
         x = self.last_conv(x)
         x = self.last_relu(x)
@@ -68,14 +68,15 @@ class GatedPixelCNN(PixelCNN):
         else:
             self.b_type_masks = nn.Sequential()
         for i in range(self.layer_num):
-            self.b_type_masks.add_module('gated_unit_{}'.format(i),
-                                         GatedUnit(self.layer_size, conditional=self.conditional,
-                                                   num_classes=self.num_classes))
+            self.b_type_masks.add_module(
+                'gated_unit_{}'.format(i),
+                GatedUnit(self.layer_size, conditional=self.conditional, num_classes=self.num_classes)
+            )
 
     def forward(self, x, h=None):
         if self.conditional:
             x = F.relu(self.conv1_bn(self.conv1(x)))
-            x = torch.cat([x, x], 1)
+            x = torch.cat((x, x), 1)
             x = self.b_type_masks(x, h)
             x = self.last_conv(x)
             x = self.last_relu(x)
