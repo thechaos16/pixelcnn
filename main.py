@@ -5,15 +5,13 @@ import os
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torch import optim, backends
+from torch import optim
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms, utils
 from torchvision.datasets.mnist import read_image_file, read_label_file
+
 from models import PixelCNN, GatedPixelCNN
-
-
-backends.cudnn.benchmark = True
 
 
 def one_hot_encoder(batch, classes):
@@ -33,7 +31,6 @@ def data_loader(root_path, train=True):
             'test': {
                 'data': read_image_file(os.path.join(root_path, 'test', 't10k-images-idx3-ubyte')),
                 'label': read_label_file(os.path.join(root_path, 'test', 't10k-labels-idx1-ubyte'))
-
             }
         }
     else:
@@ -42,6 +39,25 @@ def data_loader(root_path, train=True):
             'label': None
         }
     return data_dict
+
+
+def sample_generations(rows_num, num_classes, is_gpu, w_size=28, h_size=28):
+    # sampling
+    new_sample = torch.Tensor(rows_num * rows_num, 1, w_size, h_size)
+    rand = np.random.randint(0, num_classes)
+    print('random_number: {}'.format(rand))
+    conditions = one_hot_encoder([rand for _ in range(rows_num * rows_num)], num_classes)
+    if is_gpu:
+        new_sample = new_sample.cuda()
+        conditions = conditions.cuda()
+    new_sample.fill_(0)
+    with torch.no_grad():
+        for width in range(w_size):
+            for height in range(h_size):
+                result = model(new_sample, conditions)
+                probability = F.softmax(result[:, :, width, height]).data
+                new_sample[:, :, width, height] = torch.multinomial(probability, 1).float() / 255.  # normalization
+    utils.save_image(new_sample, 'sample_{:02d}.png'.format(epoch), nrow=rows_num, padding=0)
 
 
 if __name__ == '__main__':
@@ -58,7 +74,6 @@ if __name__ == '__main__':
     args.add_argument('--load', type=int, default=0)
     args.add_argument('--gate', type=int, default=1)
     args.add_argument('--conditional', type=int, default=0)
-    args.add_argument('--pause', type=int, default=0)
     config = args.parse_args()
 
     num_classes = 10  # FIXME: hardcode
@@ -96,11 +111,8 @@ if __name__ == '__main__':
                 if is_gpu:
                     train_label = train_label.cuda()
                     train_data = train_data.cuda()
-                train_label = Variable(train_label)
-                train = Variable(train_data)
-                target = Variable((train.data[:, 0] * 255).long())
-                train_pred = model(train, train_label)
-                
+                target = (train_data.data[:, 0] * 255).long()
+                train_pred = model(train_data, train_label)
                 loss = F.cross_entropy(train_pred, target)
                 err_tr += loss.item()
                 batch_iter_tr += 1
@@ -114,10 +126,8 @@ if __name__ == '__main__':
                 if is_gpu:
                     test_label = test_label.cuda()
                     test_data = test_data.cuda()
-                test_label = Variable(test_label)
-                test = Variable(test_data)
-                target = Variable((test.data[:, 0] * 255).long())
-                loss = F.cross_entropy(model(test, test_label), target)
+                target = (test_data.data[:, 0] * 255).long()
+                loss = F.cross_entropy(model(test_data, test_label), target)
                 err_te += loss.item()
                 batch_iter_te += 1
             state = {'model': model.state_dict(), 'optimizer': optimizer.state_dict()}
@@ -126,21 +136,7 @@ if __name__ == '__main__':
                 epoch, err_tr / batch_iter_tr, err_te / batch_iter_te
             ))
             # sampling
-            nrows = 12
-            sample = torch.Tensor(nrows*nrows, 1, 28, 28)
-            random_num = np.random.randint(0, num_classes)
-            print('random_number: {}'.format(random_num))
-            random_condition = one_hot_encoder([random_num for i in range(nrows*nrows)], num_classes)
-            if is_gpu:
-                sample = sample.cuda()
-                random_condition = random_condition.cuda()
-            sample.fill_(0)
-            for w in range(28):
-                for h in range(28):
-                    out = model(Variable(sample, volatile=True), Variable(random_condition))
-                    probs = F.softmax(out[:, :, w, h]).data
-                    sample[:, :, w, h] = torch.multinomial(probs, 1).float() / 255.  # normalization
-            utils.save_image(sample, 'sample_{:02d}.png'.format(epoch), nrow=nrows, padding=0)
+            sample_generations(12, num_classes, is_gpu)
     else:
         file_path = os.path.join(config.model, '{}.torch'.format(config.load))
         if not os.path.isfile(file_path):
@@ -148,18 +144,4 @@ if __name__ == '__main__':
         load_state = torch.load(file_path)
         model.load_state_dict(load_state['model'])
         model.eval()
-        nrows = 12
-        sample = torch.Tensor(nrows * nrows, 1, 28, 28)
-        row_condition = [np.random.randint(0, num_classes) for i in range(nrows*nrows)]
-        print(row_condition)
-        random_condition = one_hot_encoder(row_condition, num_classes)
-        if is_gpu:
-            sample = sample.cuda()
-            random_condition = random_condition.cuda()
-        sample.fill_(0)
-        for w in range(28):
-            for h in range(28):
-                out = model(Variable(sample, volatile=True), Variable(random_condition))
-                probs = F.softmax(out[:, :, w, h]).data
-                sample[:, :, w, h] = torch.multinomial(probs, 1).float() / 255.  # normalization        
-        utils.save_image(sample, 'sample_{:02d}.png'.format(config.load), nrow=nrows, padding=0)
+        sample_generations(12, num_classes, is_gpu)

@@ -2,6 +2,7 @@
 import torch
 import torch.nn.functional as F
 from torch import nn
+
 from layers import MaskedConv2d, GatedUnit
 
 
@@ -24,7 +25,8 @@ class PixelCNN(nn.Module):
         self.b_type_masks = nn.Sequential()
         for i in range(self.layer_num):
             self.b_type_masks.add_module(
-                'causal_{}'.format(i), MaskedConv2d('B', False, self.layer_size, self.layer_size, 7, 1, 3, bias=False)
+                'causal_{}'.format(i),
+                MaskedConv2d('B', False, self.layer_size, self.layer_size, 7, 1, 3, bias=False)
             )
             self.b_type_masks.add_module('bn_{}'.format(i), nn.BatchNorm2d(self.layer_size))
             self.b_type_masks.add_module('relu_{}'.format(i), nn.ReLU(True))

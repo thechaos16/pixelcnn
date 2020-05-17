@@ -8,13 +8,10 @@ class DataFeeder:
         self.tr = tr
 
     def __getitem__(self, index):
-        img, target = self.dataset['data'][index],\
-                      self.dataset['label'][index]
+        img, target = self.dataset['data'][index], self.dataset['label'][index]
         img = Image.fromarray(img.numpy(), mode='L')
-
         if self.tr is not None:
             img = self.tr(img)
-
         return img, target
 
     def __len__(self):
